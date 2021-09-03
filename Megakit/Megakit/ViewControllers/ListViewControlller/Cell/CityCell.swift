@@ -29,7 +29,13 @@ private extension CityCell {
         
         if let model = model {
             nameLabel.text = model.name
-            temperatureLabel.text = String(format: "%.0f", model.temperature - 273.15) + "°C"
+            
+            guard let temp = model.temperature else {
+                temperatureLabel.text = "🥺"
+                return
+            }
+            
+            temperatureLabel.text = String(format: "%.0f", temp - 273.15) + "°C"
         }
     }
 }

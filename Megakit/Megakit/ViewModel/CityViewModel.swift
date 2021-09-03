@@ -9,10 +9,14 @@ import Foundation
 
 struct CityViewModel {
     let name: String
-    let temperature: Double
+    var temperature: Double?
     
-    init(name: String, temperature: Double) {
+    let lat: Double
+    let long: Double
+    
+    init(name: String, lat: Double, long: Double) {
         self.name = name
-        self.temperature = temperature
+        self.lat = lat
+        self.long = long
     }
 }

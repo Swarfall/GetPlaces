@@ -16,6 +16,7 @@ final class ListViewController: BaseViewController {
     // MARK: - Private properties
     private let locationManager = CLLocationManager()
     private lazy var listTableViewAdapter = ListTableViewAdapter(tableView: rootView.tableView)
+    private var cityViewModels: [CityViewModel] = []
     
     // MARK: - Life cycle
     override func viewDidLoad() {
@@ -34,19 +35,18 @@ private extension ListViewController {
         locationManager.startUpdatingLocation()
     }
     
-    func fetchTemperature(results: [Result]) {
+    func fetchTemperature(results: [CityViewModel]) {
         
         let dispatchGroup = DispatchGroup()
         
-        var cityViewModels: [CityViewModel] = []
-        
-        for city in results {
+        for (index, city) in results.enumerated() {
             dispatchGroup.enter()
             
-            Requests.getTemperature(lat: "\(city.geometry.location.lat)", long: "\(city.geometry.location.lng)") { temperature in
-
-                cityViewModels.append(CityViewModel(name: city.formattedAddress,
-                                                    temperature: temperature?.main.temp ?? 0.0))
+            Requests.getTemperature(lat: "\(city.lat)", long: "\(city.long)") { [weak self] temperature in
+                guard let self = self else { return }
+                
+                self.cityViewModels[index].temperature = temperature?.main.temp
+                
                 dispatchGroup.leave()
                 
             } failure: { [weak self] error in
@@ -57,9 +57,11 @@ private extension ListViewController {
         }
         
         dispatchGroup.notify(queue: .main) { [weak self] in
-            self?.listTableViewAdapter.update(cityViewModels)
-            self?.rootView.tableView.reloadData()
-            self?.hideLoader()
+            guard let self = self else { return }
+            
+            self.listTableViewAdapter.update(self.cityViewModels)
+            self.rootView.tableView.reloadData()
+            self.hideLoader()
         }
     }
 }
@@ -75,8 +77,25 @@ extension ListViewController: CLLocationManagerDelegate {
             
             Requests.getPlaces(lat: "\(location.coordinate.latitude)",
                                long: "\(location.coordinate.longitude)") { [weak self] result in
+                guard let self = self else { return}
                 
-                self?.fetchTemperature(results: result.results)
+                for city in result.results {
+                    self.cityViewModels.append(CityViewModel(name: city.formattedAddress, lat: city.geometry.location.lat, long: city.geometry.location.lng))
+                }
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return}
+                    
+                    self.listTableViewAdapter.update(self.cityViewModels)
+                    self.rootView.tableView.reloadData()
+                    self.fetchTemperature(results: self.cityViewModels)
+                    
+                    Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+                        guard let self = self else { return }
+                        
+                        self.fetchTemperature(results: self.cityViewModels)
+                    }
+                }
                 
             } failure: { [weak self] error in
                 self?.showAlert(title: CustomError.defaultError.failureReason,
